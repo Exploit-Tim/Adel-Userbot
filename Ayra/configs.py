@@ -33,6 +33,7 @@ class Var:
     BOT_TOKEN = config("BOT_TOKEN", default=None)
     DB_NAME = config("DB_NAME", default="NayaDB")
     LOG_CHANNEL = config("LOG_CHANNEL", default=123, cast=int)
+    print(f"Nilai LOG_CHANNEL yang terbaca: {LOG_CHANNEL}")
     HEROKU_APP_NAME = config("HEROKU_APP_NAME", default=None)
     HEROKU_API = config("HEROKU_API", default=None)
     SUDO = config("SUDO", default=True, cast=bool)
