@@ -243,7 +243,7 @@ async def autopilot():
                 ayra_bot.me.id, f"Gagal Membuat Saluran Log karena {exc}.."
             )
 
-        if ayra_bot._bot: # <-- BARIS INI TELAH DIKEMBALIKAN KE `_bot`
+        if ayra_bot.is_bot: # <-- BARIS INI TELAH DIKEMBALIKAN KE `_bot`
             msg_ = "'LOG_CHANNEL' tidak ditemukan! Tambahkan untuk digunakan 'BOTMODE'"
             LOGS.error(msg_)
             return await _save(msg_)
