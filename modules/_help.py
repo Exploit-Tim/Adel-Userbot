@@ -1,14 +1,23 @@
-# ... kode sebelumnya ...
+# Ayra - UserBot
+# Copyright (C) 2021-2022 senpai80
+#
+# This file is a part of < https://github.com/senpai80/Ayra/ >
+# PLease read the GNU Affero General Public License in
+# <https://www.github.com/senpai80/Ayra/blob/main/LICENSE/>.
 
-from Ayra.dB._core import HELP, LIST
+from Ayra.dB._core import HELP, LIST # Pastikan path ini benar
 from Ayra.fns.tools import cmd_regex_replace
 from telethon import events # Pastikan ini sudah diimpor
 from telethon.errors.rpcerrorlist import (BotInlineDisabledError,
                                           BotMethodInvalidError,
                                           BotResponseTimeoutError)
 from telethon.tl.custom import Button
+import asyncio # Diperlukan untuk async sleep, jika ada (misal di inviteall)
 
-from . import HNDLR, LOGS, asst, ayra_cmd, get_string # Pastikan semua import ini ada
+from . import HNDLR, LOGS, asst, ayra_cmd, get_string # Pastikan semua import ini ada, termasuk eor, eod, dll.
+
+# Asumsi OWNER_NAME didefinisikan di scope yang bisa diakses di sini
+# Contoh: OWNER_NAME = "Nama Pemilik Bot"
 
 _main_help_menu = [
     [
@@ -72,17 +81,16 @@ async def _help(ayra):
             await ayra.eor("Error 🤔 occured.")
     else:
         try:
+            # Perhatikan: asst.me.username ini membutuhkan bot inline kamu aktif dan username-nya terdefinisi
             results = await ayra.client.inline_query(asst.me.username, "ayra")
         except BotMethodInvalidError:
-            z = []
-            for x in LIST.values():
-                z.extend(x)
-            cmd = len(z) + 10
+            # Fallback jika bot inline tidak aktif atau ada masalah
+            total_commands = sum(len(cmds) for cmds in LIST.values()) # Menghitung total commands
             return await ayra.reply(
                 get_string("inline_4").format(
-                    OWNER_NAME, # Pastikan OWNER_NAME sudah terdefinisi
-                    len(HELP["Official"]),
-                    cmd,
+                    OWNER_NAME,
+                    len(HELP["Official"]), # Jumlah modul "Official"
+                    total_commands, # Total Commands
                 ),
                 buttons=_main_help_menu,
             )
@@ -92,52 +100,66 @@ async def _help(ayra):
             )
         except BotInlineDisabledError:
             return await ayra.eor(get_string("help_3"))
+        
+        # Ini adalah bagian yang akan memicu hasil inline query (jika berhasil)
+        # Jika inline query berhasil, bot akan mengirim pesan inline hasil query.
+        # Jika ingin selalu menggunakan inline button di bawah pesan utama (tanpa inline query bot),
+        # maka bagian ini perlu diubah untuk langsung ayra.reply/eor dengan _main_help_menu.
+        # Untuk saat ini, saya biarkan sesuai logika aslinya yang mencoba inline query dulu.
         await results[0].click(chat.id, reply_to=ayra.reply_to_msg_id, hide_via=True)
         await ayra.delete()
 
 
 # --- START OF NEW CODE FOR INLINE BUTTON HANDLING ---
 
-# Ini adalah handler untuk tombol inline
+# Handler untuk tombol "Module" (data="uh_Official_")
 @ayra_cmd(pattern="^uh_Official_", incoming=True, func=lambda e: e.is_private, is_callback=True)
-async def inline_help_handler(event):
-    # event.data akan berisi data dari tombol yang dipencet (uh_Official_")
+async def inline_help_modules_handler(event):
+    # event.data akan berisi data dari tombol yang dipencet ("uh_Official_")
     query_data = event.data.decode("utf-8")
 
     if query_data == "uh_Official_":
         # Di sini kamu akan membuat isi pesan yang seharusnya muncul setelah tombol dipencet
         # Misalnya, daftar modul inline atau pesan bantuan khusus.
         
-        # Contoh sederhana:
-        # Dapatkan daftar modul inline yang ada (misal dari HELP atau LIST)
-        inline_modules_text = "**Daftar Modul Inline:**\n\n"
-        # Asumsi 'HELP' atau 'LIST' memiliki struktur untuk modul inline
-        # Ini perlu kamu sesuaikan dengan struktur data bot kamu yang sebenarnya.
-        # Contoh:
-        # for module_name, commands in LIST.items():
-        #     if "inline" in module_name.lower(): # Contoh: jika nama modul mengandung "inline"
-        #         inline_modules_text += f"• `{module_name}`\n"
+        module_list_text = f"**{get_string('help_4')}**\n\n" # Menggunakan get_string untuk judul
         
-        # Untuk demonstrasi, kita akan gunakan teks placeholder
-        inline_modules_text += "• Modul Inline 1\n"
-        inline_modules_text += "• Modul Inline 2\n"
-        inline_modules_text += "\n© @Darensupport"
+        # Iterasi melalui LIST untuk mendapatkan nama-nama modul
+        # Asumsi 'LIST' adalah dictionary dengan keys sebagai nama modul
+        module_names = sorted([name for name in LIST.keys() if not name.startswith("_")]) # Filter modul internal
+        
+        if module_names:
+            for module_name in module_names:
+                module_list_text += f"• `{module_name}`\n"
+        else:
+            module_list_text += "Tidak ada modul yang ditemukan.\n"
+        
+        module_list_text += "\n\n**Untuk melihat detail perintah:**\n` .help <nama_modul>`"
+        module_list_text += "\n© @Darensupport"
 
-
-        await event.edit(inline_modules_text, buttons=[
-            Button.inline("Kembali ke Menu Utama", data="main_menu_help") # Contoh tombol kembali
+        # Kirim respons (mengedit pesan sebelumnya agar terlihat mulus)
+        # Tombol untuk kembali ke menu utama
+        await event.edit(module_list_text, buttons=[
+            Button.inline("Kembali ke Menu Utama", data="main_menu_help")
         ])
+    else:
+        # Ini seharusnya tidak tercapai jika pattern sudah spesifik
+        LOGS.warning(f"Unexpected callback data received: {query_data}")
+        await event.answer("Terjadi kesalahan, coba lagi.")
 
-    # Contoh handler untuk tombol 'Kembali ke Menu Utama'
-    elif query_data == "main_menu_help":
-        # Kembali menampilkan menu bantuan utama
-        await event.edit(
-            get_string("inline_4").format(
-                OWNER_NAME,
-                len(HELP["Official"]),
-                len(LIST.values()) + 10, # Perkiraan cmd total, sesuaikan jika perlu
-            ),
-            buttons=_main_help_menu, # Menampilkan tombol menu utama lagi
-        )
+# Handler untuk tombol "Kembali ke Menu Utama" (data="main_menu_help")
+@ayra_cmd(pattern="^main_menu_help", incoming=True, func=lambda e: e.is_private, is_callback=True)
+async def back_to_main_menu_handler(event):
+    # Hitung total perintah lagi untuk menu utama
+    total_commands = sum(len(cmds) for cmds in LIST.values())
+
+    await event.edit(
+        get_string("inline_4").format(
+            OWNOR_NAME, # Gunakan OWNER_NAME
+            len(HELP["Official"]),
+            total_commands,
+        ),
+        buttons=_main_help_menu, # Menampilkan tombol menu utama lagi
+    )
 
 # --- END OF NEW CODE ---
