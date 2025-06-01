@@ -62,10 +62,10 @@ async def get_chatinfo(event):
             await eor(event, "`Grup tidak ditemukan...`")
             return None
         except ChannelPrivateError:
-            await eod(event, "`Sepertinya Grup Private atau Userbot tidak punya akses.`") # Pesan lebih jelas
+            await eod(event, "`Sepertinya Grup Private atau Userbot tidak punya akses.`")
             return None
         except ChannelPublicGroupNaError:
-            await eod(event, "`Grup tidak ditemukan atau tidak tersedia.`") # Pesan lebih jelas
+            await eod(event, "`Grup tidak ditemukan atau tidak tersedia.`")
             return None
         except (TypeError, ValueError):
             await eod(event, "`Grup tidak ditemukan...`")
@@ -83,23 +83,18 @@ async def _(event):
             event,
             "Gunakan format `invite` pengguna ke grup chat, bukan ke Pesan Pribadi.",
         )
-        return # Tambahkan return agar tidak lanjut eksekusi
+        return
     else:
-        # Menghapus fwd_limit karena tidak valid untuk AddChatUserRequest/InviteToChannelRequest
-        # Serta menyatukan logika untuk group dan channel agar lebih ringkas
         for user_id_str in to_add_users.split():
             try:
                 user_id = int(user_id_str) if user_id_str.isdigit() else user_id_str
                 
-                # Menggunakan InviteToChannelRequest untuk kedua kasus (group dan channel)
-                # karena AddChatUserRequest lebih jarang digunakan dan InviteToChannelRequest lebih fleksibel
                 await event.client(
                     InviteToChannelRequest(
                         channel=event.chat_id, users=[user_id]
                     )
                 )
             except Exception as e:
-                # Memberikan error yang lebih spesifik jika memungkinkan
                 error_message = f"**Gagal mengundang {user_id_str}**: `{e}`."
                 if isinstance(e, ChatAdminRequiredError):
                     error_message = "**Error**: `Bot perlu menjadi admin dengan izin 'Tambah Anggota' di grup ini.`"
@@ -111,8 +106,8 @@ async def _(event):
                     error_message = f"**Gagal**: `Pengguna {user_id_str} bukan kontak bersama atau membatasi penambahan.`"
                 elif isinstance(e, FloodWaitError):
                     error_message = f"**Warning**: `Terkena batasan Telegram. Tunggu {e.seconds} detik.`"
-                    await asyncio.sleep(e.seconds + 2) # Tambah sedikit waktu untuk aman
-                return await eor(event, error_message) # Menghentikan jika ada error pada satu pengguna
+                    await asyncio.sleep(e.seconds + 2)
+                return await eor(event, error_message)
         
         await eor(event, "`Sukses Nyulik Untung Ga Deak...`")
 
@@ -124,23 +119,18 @@ async def _(event):
 
 @ayra_cmd(pattern="inviteall ?(.*)")
 async def get_users(event):
-    # Menggunakan regex group 1 untuk mendapatkan argumen setelah inviteall
     target_group_username_or_id = event.pattern_match.group(1)
     
-    # Memastikan username grup diawali dengan '@' jika pengguna lupa
     if target_group_username_or_id and not target_group_username_or_id.startswith('@') and not target_group_username_or_id.isdigit():
         target_group_username_or_id = '@' + target_group_username_or_id
 
     restricted = ["@AstaSupportt", "@astaboynich"]
     
-    # Konversi username ke lowercase untuk perbandingan yang konsisten
     if target_group_username_or_id.lower() in [r.lower() for r in restricted]:
         await eor(event, "**Dilarang nyulik member dari sana om.**")
-        # Kirim pesan ke chat tertentu (pastikan ID chat ini valid dan bot punya akses)
         try:
             await event.client.send_message(-1002109872719, "**Mo nyulik kaga bisa.**")
         except Exception as e:
-            # Handle jika pengiriman pesan ke chat hardcoded gagal
             print(f"Gagal mengirim pesan ke chat restricted: {e}")
         return
         
@@ -156,7 +146,6 @@ async def get_users(event):
 
     ayraa = await eor(event, "`Processing....`")
     
-    # Dapatkan info grup target (tempat member akan diinvite)
     try:
         if target_chat_str.isdigit():
             target_chat_entity = await event.client.get_entity(int(target_chat_str))
@@ -166,7 +155,6 @@ async def get_users(event):
     except Exception:
         return await ayraa.edit("`Grup target tidak ditemukan atau tidak valid.`")
 
-    # Dapatkan info grup sumber (tempat member diambil)
     try:
         if source_chat_str.isdigit():
             source_chat_entity = await event.client.get_entity(int(source_chat_str))
@@ -176,67 +164,60 @@ async def get_users(event):
     except Exception:
         return await ayraa.edit("`Grup sumber tidak ditemukan atau tidak valid.`")
 
-    # Cek apakah bot adalah admin di grup target
+    # Perbaikan: tambahkan 'await' di kedua panggilan event.client.get_me()
     try:
-        me_as_participant = await event.client.get_permissions(target_chat_entity, event.client.get_me())
+        me_as_participant = await event.client.get_permissions(target_chat_entity, await event.client.get_me())
         if not me_as_participant.is_admin or not me_as_participant.invite_users:
             return await ayraa.edit("**Error**: `Bot harus menjadi admin dengan izin 'Tambah Anggota' di grup target.`")
     except Exception as e:
         return await ayraa.edit(f"**Error memeriksa izin di grup target**: `{e}`. Pastikan bot ada di grup.")
     
-    # Cek apakah bot adalah admin di grup sumber (untuk iter_participants)
     try:
-        me_as_participant_source = await event.client.get_permissions(source_chat_entity, event.client.get_me())
-        if not me_as_participant_source.is_admin: # iter_participants tidak selalu butuh admin, tapi lebih aman jika ada
-            # Beri peringatan jika bukan admin, tapi tetap coba lanjutkan
+        me_as_participant_source = await event.client.get_permissions(source_chat_entity, await event.client.get_me())
+        if not me_as_participant_source.is_admin:
             await ayraa.edit("`Peringatan: Bot bukan admin di grup sumber. Mungkin tidak bisa mendapatkan semua peserta.`")
     except Exception as e:
-        return await ayraa.edit(f"**Error memeriksa izin di grup sumber**: `{e}`. Pastikan bot ada di grup.")
+        # Ini bisa terjadi jika bot tidak ada di grup sumber sama sekali atau grupnya private
+        return await ayraa.edit(f"**Error memeriksa izin di grup sumber**: `{e}`. Pastikan bot ada di grup sumber.")
 
-    s = 0 # Sukses
-    f = 0 # Gagal
-    
-    current_status_message = await ayraa.edit(f"`Sedang memproses...`\n\n• **Menambahkan** `{s}` **orang** \n• **Gagal Menambahkan** `{f}` **orang**")
-
-    # Menggunakan iter_participants dari grup sumber
-    async for user in event.client.iter_participants(source_chat_id):
-        # Skip diri sendiri atau bot lain (opsional, tergantung kebutuhan)
+    s = 0
+    f = 0
+    error = "None"
+    await ayraa.edit("`Processing...`")
+    async for user in event.client.iter_participants(source_chat_id): # Menggunakan source_chat_id
+        # Lewati diri sendiri atau bot lain (opsional)
         if user.is_self or user.bot:
             continue
             
         try:
-            await event.client(InviteToChannelRequest(channel=target_chat_id, users=[user.id]))
+            await event.client(InviteToChannelRequest(channel=target_chat_id, users=[user.id])) # Menggunakan target_chat_id
             s += 1
-            # Update status setiap beberapa user, bukan setiap user untuk mengurangi spam API
-            if s % 10 == 0: # Update setiap 10 user berhasil
-                await current_status_message.edit(
-                    f"`Sedang memproses...`\n\n• **Berhasil Menambahkan** `{s}` **orang** \n• **Gagal Menambahkan** `{f}` **orang**"
-                )
+            await ayraa.edit(
+                f"`Processing...`\n\n• **Berhasil Menambahkan** `{s}` **orang** \n• **Gagal Menambahkan** `{f}` **orang**\n\n** Error:** `{error}`"
+            )
             await asyncio.sleep(0.5) # Jeda kecil untuk menghindari FloodWait
         except UserAlreadyParticipantError:
             f += 1
-            # Tidak perlu laporkan error ini secara detail, cukup tambahkan ke gagal
-            pass 
+            error = "UserAlreadyParticipantError"
+            pass # Lanjutkan tanpa mengubah pesan error terakhir secara global
         except UserPrivacyRestrictedError:
             f += 1
-            # Pengguna membatasi penambahan
+            error = "UserPrivacyRestrictedError"
             pass
         except UserNotMutualContactError:
             f += 1
-            # Bukan kontak bersama, atau privasi
+            error = "UserNotMutualContactError"
             pass
         except FloodWaitError as e:
-            await current_status_message.edit(f"**Peringatan FloodWait**: `Terkena batasan Telegram. Menunggu {e.seconds} detik...`")
-            await asyncio.sleep(e.seconds + 5) # Menunggu lebih lama sedikit
+            await ayraa.edit(f"**Peringatan FloodWait**: `Terkena batasan Telegram. Menunggu {e.seconds} detik...`")
+            await asyncio.sleep(e.seconds + 5)
         except ChatAdminRequiredError:
             # Jika tiba-tiba kehilangan admin atau error permission saat invite
             return await ayraa.edit("**Error**: `Bot tidak lagi menjadi admin atau tidak punya izin 'Tambah Anggota' di grup target.`")
         except Exception as e:
-            # Tangani error generik lainnya
+            error = str(e)
             f += 1
-            # Optional: log the error to console or specific chat
-            # print(f"Error inviting user {user.id}: {e}")
-            pass
+            pass # Lanjutkan
 
     return await ayraa.edit(
         f"**Terminal Selesai** \n\n• **Berhasil Menambahkan** `{s}` **orang** \n• **Gagal Menambahkan** `{f}` **orang**"
